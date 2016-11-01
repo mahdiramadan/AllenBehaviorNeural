@@ -16,6 +16,9 @@ import warnings
 from math import isnan
 from sklearn.externals import joblib
 from sklearn.preprocessing import Imputer
+from skimage import data, color, exposure
+from skimage.transform import pyramid_gaussian
+from skimage.feature import hog
 
 
 
@@ -61,7 +64,7 @@ def run_whole_video(exp_folder, lims_ID):
 
 
     # create hdf file
-    hf = h5py.File('data_' + str(lims_ID) + '.h5', 'w')
+    hf = h5py.File('data_' + str(lims_ID) + 'test.h5', 'w')
     g = hf.create_group('feature space')
     vector = np.zeros((limit, 4321))
     table = g.create_dataset('features', data=vector, shape=(limit, 4321))
@@ -100,6 +103,43 @@ def optical_flow(prvs, next):
 def process_input(input):
 
     frame_data = []
+
+
+    for (i, resized) in enumerate(pyramid_gaussian(input, downscale=1.5)):
+        # if the image is too small, break from the loop
+
+
+        # winSize = (32,32)
+        # blockSize = (16, 16)
+        # blockStride = (8, 8)
+        # cellSize = (8, 8)
+        # nbins = 9
+        # derivAperture = 1
+        # winSigma = 4.
+        # histogramNormType = 0
+        # L2HysThreshold = 2.0000000000000001e-01
+        # gammaCorrection = 0
+        # nlevels = 64
+        # hog = cv2.HOGDescriptor(winSize, blockSize, blockStride, cellSize, nbins, derivAperture, winSigma,
+        #                         histogramNormType, L2HysThreshold, gammaCorrection, nlevels)
+        # # compute(img[, winStride[, padding[, locations]]]) -> descriptors
+        # winStride = (8, 8)
+        # padding = (8, 8)
+        #
+        # image = color.rgb2gray(resized)
+        #
+        # hist = hog.compute(image, winStride, padding)
+        fd = hog(resized, orientations=8, pixels_per_cell=(16, 16),
+                            cells_per_block=(1, 1), visualise=False)
+
+
+        hist= preprocessing.MinMaxScaler((-1, 1)).fit(fd).transform(fd)
+        frame_data = np.concatenate((frame_data, hist))
+        
+        if resized.shape[0] < 100 or resized.shape[1] < 100:
+            break
+
+
     # for each defined window over the data, bin values and return a
     # properly scaled list of expectation values
     for (x, y, window) in sliding_window(input, 30, (30, 30)):
@@ -120,7 +160,7 @@ def sliding_window(image, stepSize, windowSize):
 def get_file_string(exp_folder,lims_ID):
 
     for file in os.listdir(exp_folder):
-        if file.endswith(".mp4") and file.startswith(lims_ID):
+        if file.endswith(".avi") and file.startswith(lims_ID):
             file_string = os.path.join(exp_folder, file)
             return file_string
 
@@ -129,11 +169,10 @@ def get_file_string(exp_folder,lims_ID):
 if __name__ == '__main__':
     # initializes code with path to folder and lims ID
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    exp_folder = 'C:\Users\mahdir\Desktop\Mahdi files'
-    lims_ID = '497060401'
+    exp_folder = 'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation'
+    lims_ID = '501560436'
     # run_whole_video(exp_folder, lims_ID)
 
     p = Process(target=run_whole_video(exp_folder, lims_ID), args= (exp_folder, lims_ID))
     p.start()
     p.join()
-
