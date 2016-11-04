@@ -33,6 +33,14 @@ def run_whole_video(exp_folder, lims_ID):
     file_string = get_file_string(exp_folder + '\Videos\\', lims_ID)
     video_pointer = cv2.VideoCapture(file_string)
 
+    # load feature scalers
+    scale_wheel= joblib.load(exp_folder + '\Scalers\\' + 'wheel_scale_' + str(lims_ID) + '.pkl')
+    scale_frame = joblib.load(exp_folder + '\Scalers\\' + 'frame_scale_' + str(lims_ID) + '.pkl')
+    scale_optical = joblib.load(exp_folder + '\Scalers\\' + 'optical_scale_' + str(lims_ID) + '.pkl')
+    scale_angle = joblib.load(exp_folder + '\Scalers\\' + 'angle_scale_' + str(lims_ID) + '.pkl')
+
+
+
     # import wheel data
     dir = os.path.join(exp_folder + '\Wheel\\', 'dxds' + str(lims_ID) + '.pkl' )
     wheel = joblib.load(dir)
@@ -40,8 +48,8 @@ def run_whole_video(exp_folder, lims_ID):
     first_index = np.where(wheel == first_non_nan)[0]
     k = first_index[0]
     imp = Imputer(missing_values='NaN', strategy='mean')
-    wheel = imp.fit_transform(wheel)
-    wheel = preprocessing.MinMaxScaler((-1, 1)).fit(wheel).transform(wheel)
+    wheel= imp.fit_transform(wheel)
+    wheel = scale_wheel.transform(wheel)
 
     video_pointer.set(1, k)
     ret, frame = video_pointer.read()
@@ -74,52 +82,38 @@ def run_whole_video(exp_folder, lims_ID):
 
     print('creating hf')
     # create hdf file
-    hf = h5py.File(exp_folder + '\h5 files\\'+ 'training_data_' + str(lims_ID) + 'test.h5', 'w')
-
-    g = hf.create_group('scaler data')
-    b = hf.create_group('behavior data')
-    vector = np.zeros((limit - k, 5713))
-    string = np.chararray((limit-k, 1))
-
-    feature_table = g.create_dataset('features', data=vector, shape=(limit - k, 5713))
-    behavior_table = g.create_dataset('behavior', data=string, shape=(limit - k, 1))
+    hf = h5py.File(exp_folder + '\h5 files\\'+ 'training_data_' + str(lims_ID) + '.h5', 'w')
 
 
-    # hf.create_dataset('')
-    # for item in labels:
-    #     g = hf.create_group(item)
 
-        # print('creating group')
-        # for person in Annotators:
-        #     h = hf.create_group(person)
-        #     vector = np.zeros((limit, 5713))
-        #     table = h.create_dataset('features', data=vector, shape=(limit, 5713))
-
-    while count < limit- first_index[0]:
+    while count < limit-first_index[0]:
         # get behavior info for frame
-        t1= time.time()
+
         behavior = ""
+        temp = 1
         for item in labels:
-            if behavior_data[ep(exp_folder,lims_ID).get_labels().index(item) + 1][k] == 1:
+            if behavior_data[temp][k] == 1:
                 behavior = behavior + " " + item
+            temp += 1
 
 
         prvs = nex
-        frames = process_input(prvs)
+        frame_data = process_input(prvs)
+        frames = scale_frame.transform(frame_data)
+
 
         ret, frame = video_pointer.read()
         nex = cv2.cvtColor(frame[160:400, 100:640], cv2.COLOR_BGR2GRAY)
 
         optical = optical_flow(prvs, nex)
-        opticals = optical['mag']
-        angles= optical['ang']
+        opticals = scale_optical.transform(optical['mag'])
+        angles= scale_angle.transform(optical['ang'])
+
         vector_data = np.concatenate((np.reshape(wheel[k], (1)), frames, opticals, angles))
         name = 'frame number ' + str(k)
         table = hf.create_dataset(name, data= vector_data, shape=(1, 5713), compression=9)
         table.attrs['behavior'] = behavior
 
-        t2 = time.time()
-        print(t2-t1)
         count += 1
         k += 1
 
@@ -150,9 +144,7 @@ def process_input(input):
 
         fd = hog(resized, orientations=8, pixels_per_cell=(30, 30),
                             cells_per_block=(1, 1), visualise=False)
-
-        hist= preprocessing.MinMaxScaler((-1, 1)).fit(fd).transform(fd)
-        frame_data = np.concatenate((frame_data, hist))
+        frame_data = np.concatenate((frame_data, fd))
 
         # if the image is too small, break from the loop
         if resized.shape[0] < 100 or resized.shape[1] < 100:
