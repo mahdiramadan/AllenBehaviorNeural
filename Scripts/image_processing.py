@@ -19,6 +19,7 @@ from sklearn.preprocessing import Imputer
 from skimage import data, color, exposure
 from skimage.transform import pyramid_gaussian
 from skimage.feature import hog
+from excel_processing import ExcelProcessing as ep
 
 
 
@@ -58,18 +59,51 @@ def run_whole_video(exp_folder, lims_ID):
     angles = []
     frames = []
 
+
+    behavior_data = ep(exp_folder,lims_ID).get_per_frame_data()
+
+    labels = ["chattering", "trunk_present", "grooming", "trunk_absent", "running",
+              "fidget", "tail_relaxed", "tail_tense", "flailing_present", "flailing_absent", "walking"]
+
+    Annotators = ['Mahdi Ramadan', 'Fiona Griffin', 'Nate Berbesque', 'Robert Howard', 'Kyla Mace', 'Twee']
+
+
     # length of movie
     limit = int(video_pointer.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
     fps = video_pointer.get(cv2.cv.CV_CAP_PROP_FPS)
 
-
+    print('creating hf')
     # create hdf file
-    hf = h5py.File('data_' + str(lims_ID) + 'test.h5', 'w')
-    g = hf.create_group('feature space')
-    vector = np.zeros((limit, 4321))
-    table = g.create_dataset('features', data=vector, shape=(limit, 4321))
+    hf = h5py.File(exp_folder + '\h5 files\\'+ 'training_data_' + str(lims_ID) + 'test.h5', 'w')
 
-    while count < limit-k:
+    g = hf.create_group('scaler data')
+    b = hf.create_group('behavior data')
+    vector = np.zeros((limit - k, 5713))
+    string = np.chararray((limit-k, 1))
+
+    feature_table = g.create_dataset('features', data=vector, shape=(limit - k, 5713))
+    behavior_table = g.create_dataset('behavior', data=string, shape=(limit - k, 1))
+
+
+    # hf.create_dataset('')
+    # for item in labels:
+    #     g = hf.create_group(item)
+
+        # print('creating group')
+        # for person in Annotators:
+        #     h = hf.create_group(person)
+        #     vector = np.zeros((limit, 5713))
+        #     table = h.create_dataset('features', data=vector, shape=(limit, 5713))
+
+    while count < limit- first_index[0]:
+        # get behavior info for frame
+        t1= time.time()
+        behavior = ""
+        for item in labels:
+            if behavior_data[ep(exp_folder,lims_ID).get_labels().index(item) + 1][k] == 1:
+                behavior = behavior + " " + item
+
+
         prvs = nex
         frames = process_input(prvs)
 
@@ -80,8 +114,12 @@ def run_whole_video(exp_folder, lims_ID):
         opticals = optical['mag']
         angles= optical['ang']
         vector_data = np.concatenate((np.reshape(wheel[k], (1)), frames, opticals, angles))
-        table[count, :] = vector_data
+        name = 'frame number ' + str(k)
+        table = hf.create_dataset(name, data= vector_data, shape=(1, 5713), compression=9)
+        table.attrs['behavior'] = behavior
 
+        t2 = time.time()
+        print(t2-t1)
         count += 1
         k += 1
 
@@ -94,9 +132,12 @@ def optical_flow(prvs, next):
     flow = cv2.calcOpticalFlowFarneback(prvs, next, 0.5, 3, 15, 3, 5, 1.2, 0)
     mag, ang= cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
+
     # get histograms of optical flow and angles (these are our features)
-    mag = process_input(mag)
-    ang = process_input((ang*180/np.pi/2))
+    mag = process_input(exposure.rescale_intensity(mag, in_range=(-1, 1)))
+
+    #ang = process_input((ang*180/np.pi/2))
+    ang = process_input(exposure.rescale_intensity(ang, in_range=(-1, 1)))
 
     return {'mag': mag, 'ang': ang}
 
@@ -106,48 +147,21 @@ def process_input(input):
 
 
     for (i, resized) in enumerate(pyramid_gaussian(input, downscale=1.5)):
-        # if the image is too small, break from the loop
 
-
-        # winSize = (32,32)
-        # blockSize = (16, 16)
-        # blockStride = (8, 8)
-        # cellSize = (8, 8)
-        # nbins = 9
-        # derivAperture = 1
-        # winSigma = 4.
-        # histogramNormType = 0
-        # L2HysThreshold = 2.0000000000000001e-01
-        # gammaCorrection = 0
-        # nlevels = 64
-        # hog = cv2.HOGDescriptor(winSize, blockSize, blockStride, cellSize, nbins, derivAperture, winSigma,
-        #                         histogramNormType, L2HysThreshold, gammaCorrection, nlevels)
-        # # compute(img[, winStride[, padding[, locations]]]) -> descriptors
-        # winStride = (8, 8)
-        # padding = (8, 8)
-        #
-        # image = color.rgb2gray(resized)
-        #
-        # hist = hog.compute(image, winStride, padding)
-        fd = hog(resized, orientations=8, pixels_per_cell=(16, 16),
+        fd = hog(resized, orientations=8, pixels_per_cell=(30, 30),
                             cells_per_block=(1, 1), visualise=False)
-
 
         hist= preprocessing.MinMaxScaler((-1, 1)).fit(fd).transform(fd)
         frame_data = np.concatenate((frame_data, hist))
-        
+
+        # if the image is too small, break from the loop
         if resized.shape[0] < 100 or resized.shape[1] < 100:
             break
 
 
     # for each defined window over the data, bin values and return a
     # properly scaled list of expectation values
-    for (x, y, window) in sliding_window(input, 30, (30, 30)):
-        hist, bin = np.histogram(window, 10)
-        center = (bin[:-1] + bin[1:]) / 2
-        hist_x = np.multiply(center, hist)
-        hist_x = preprocessing.MinMaxScaler((-1, 1)).fit(hist_x).transform(hist_x)
-        frame_data = np.concatenate((frame_data, hist_x))
+
     return frame_data
 
 def sliding_window(image, stepSize, windowSize):
@@ -171,6 +185,7 @@ if __name__ == '__main__':
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     exp_folder = 'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation'
     lims_ID = '501560436'
+
     # run_whole_video(exp_folder, lims_ID)
 
     p = Process(target=run_whole_video(exp_folder, lims_ID), args= (exp_folder, lims_ID))
