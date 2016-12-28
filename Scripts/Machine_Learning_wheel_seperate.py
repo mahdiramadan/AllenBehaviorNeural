@@ -25,23 +25,25 @@ from multiprocessing import Process
 from sklearn.cross_validation import train_test_split
 from math import isnan
 from sklearn.externals import joblib
+import scipy
 import collections
 from sklearn import datasets, linear_model
 from sklearn.preprocessing import Imputer
 import time
 import pdb
+from sklearn.decomposition import PCA
 
 def run_svm(final_data, y_vector, y_track):
-
-    rows_n = len(final_data)
-    train = int(round(rows_n*0.6))
-
-    a = set(y_vector)
-    print(a)
+    scipy.io.savemat('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_2000_fidget_neither_503412730_497060401_502741583_501004031_500860585_501560436_503412730_501773889.mat', {'features':final_data})
+    # rows_n = len(final_data)
+    # train = int(round(rows_n*0.75))
+    #
+    # a = set(y_vector)
+    # print(a)
     zero = 0
     one = 0
     two = 0
-
+    #
     for i in range(0, len(y_vector)):
         if (y_vector[i] == 0):
             zero += 1
@@ -50,66 +52,106 @@ def run_svm(final_data, y_vector, y_track):
         else:
             two += 1
     print(zero , one , two)
+    #
+    # X_train, X_test, y_train, y_test = train_test_split(final_data, y_vector, test_size=0.35, random_state=32)
+    #
+    # # pca = PCA(n_components= 10)
+    # # pca.fit(final_data)
+    # #
+    # # X_train = pca.transform(X_train)
+    # # X_test = pca.transform(X_test)
+    #
+    #
+    #
+    # # # Set the parameters by cross-validation
+    # # tuned_parameters = [{'kernel': ['rbf'], 'gamma': [ 1e-5, 1e-4],
+    # #                      'C': [ 0.1 , 10, 100]}]
+    # #
+    # # scores = ['f1_weighted']
+    # #
+    # # for score in scores:
+    # #     print("# Tuning hyper-parameters for %s" % score)
+    # #     print()
+    # #
+    # #     clf = GridSearchCV(SVC(C=1), tuned_parameters, cv=2,
+    # #                        scoring='%s' % score, n_jobs=-1)
+    # #     clf.fit(X_train, y_train)
+    # #
+    # #     print("Best parameters set found on development set:")
+    # #     print()
+    # #     print(clf.best_params_)
+    # #     print()
+    # #     print("Grid scores on development set:")
+    # #     print()
+    # #     for params, mean_score, scores in clf.grid_scores_:
+    # #         print("%0.3f (+/-%0.03f) for %r"
+    # #               % (mean_score, scores.std() * 2, params))
+    # #     print()
+    # #
+    # #     print("Detailed classification report:")
+    # #     print()
+    # #     print("The model is trained on the full development set.")
+    # #     print("The scores are computed on the full evaluation set.")
+    # #     print()
+    # #     y_true, y_pred = y_test, clf.predict(X_test)
+    # #     print(classification_report(y_true, y_pred))
+    # #     print(
+    #
+    #     # # # clf = RandomForestClassifier(verbose=3)
+    # clf = SVC(kernel='rbf', C = 10, gamma = 1e-5 )
+    #     #
+    #     # clf = neighbors.KNeighborsClassifier(2)
+    # clf.fit(X_train, y_train)
+    #     #
+    # joblib.dump(clf, 'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\ML Models\sixty_f_block_fidget_neither_test_many.pkl')
+    # #
+    # y_true, y_pred = y_test, clf.predict(X_test)
+    #
+    # total = len(y_true)
+    # right = 0
+    #
+    # zero = 0
+    # one= 0
+    # two = 0
+    #
+    # k = y_pred[0]
+    # l = y_true[0]
+    #
+    # for i in range(0, len(y_pred)):
+    #     if (y_pred[i] == 0):
+    #         zero += 1
+    #     elif (y_pred[i] == 1):
+    #         one += 1
+    #     else:
+    #         two += 1
+    # print(zero , one , two)
+    #
+    #
+    # for i in range (len(y_pred)):
+    #     if (y_pred[i] == y_true[i]):
+    #         right += 1
+    # accuracy = float(right)/total * 100
+    # print (accuracy)
+    #
+    # zero = 0
+    # one = 0
+    # two = 0
+    #
+    # for i in range(0, len(y_true)):
+    #     if (y_true[i] == 0):
+    #         zero += 1
+    #     elif (y_true[i] == 1):
+    #         one += 1
+    #     else:
+    #         two += 1
+    # print(zero , one , two)
+    #
+    #     # print(classification_report(y_true, y_pred))
 
 
 
-    X_train = final_data[0:train]
-    X_test = final_data[train:rows_n]
 
-
-    y_train = y_vector[0:train]
-    y_test = y_vector[train:rows_n]
-
-
-    # Set the parameters by cross-validation
-    tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-6, 1e-5, 1e-4],
-                         'C': [0.001, 0.01,  0.1 , 10]}]
-
-    scores = ['f1_weighted']
-
-    for score in scores:
-        print("# Tuning hyper-parameters for %s" % score)
-        print()
-
-        clf = GridSearchCV(SVC(C=1), tuned_parameters, cv=2,
-                           scoring='%s' % score, n_jobs=-1)
-        clf.fit(X_train, y_train)
-
-        print("Best parameters set found on development set:")
-        print()
-        print(clf.best_params_)
-        print()
-        print("Grid scores on development set:")
-        print()
-        for params, mean_score, scores in clf.grid_scores_:
-            print("%0.3f (+/-%0.03f) for %r"
-                  % (mean_score, scores.std() * 2, params))
-        print()
-
-        print("Detailed classification report:")
-        print()
-        print("The model is trained on the full development set.")
-        print("The scores are computed on the full evaluation set.")
-        print()
-        y_true, y_pred = y_test, clf.predict(X_test)
-        print(classification_report(y_true, y_pred))
-        print()
-
-        # # # clf = RandomForestClassifier(verbose=3)
-        # # clf = SVC(kernel='linear', C = 0.1, verbose = 2)
-        #
-        # clf = neighbors.KNeighborsClassifier(2)
-        # clf.fit(X_train, y_train)
-        #
-        # joblib.dump(clf, 'clf.pkl')
-        #
-        # y_true, y_pred = y_test, clf.predict(X_test)
-        # print(classification_report(y_true, y_pred))
-
-
-
-
-def get_data(lims_ID):
+def get_data(lims_ID, ep):
 
     # import h5py file for each lims ID video
     hf = h5py.File(('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\h5 files/training_data_pervectornorm' + str(lims_ID) + '.h5'), 'r')
@@ -124,13 +166,28 @@ def get_data(lims_ID):
     first_non_nan = next(x for x in wheel if not isnan(x))
     first_index = np.where(wheel == first_non_nan)[0]
 
+    label = 'fidget'
+    index = ep.get_labels().index(label) + 1
+    fidget_vector = np.array(ep.get_per_frame_data()[index])
+
+    label = 'walking'
+    index = ep.get_labels().index(label) + 1
+    walking = np.array(ep.get_per_frame_data()[index])
+
+    label = 'running'
+    index = ep.get_labels().index(label) + 1
+    running = np.array(ep.get_per_frame_data()[index])
+
+    movement_vector = []
+    movement_vector.append([sum(x) for x in zip(walking, running)])
+
     # set your desired starting frame relative to first_index
     start_Frame = 0
 
     # store length of feature vectors
     number_of_features = 5713
     # set desired frames per tarining block
-    frames_per_block = 1
+    frames_per_block = 60
 
 
     # update k to fist_index plus any desired start frame offset!!!
@@ -140,50 +197,64 @@ def get_data(lims_ID):
     data_length = len(data_tables) - start_Frame
     #initialize a counter
     count = 0
+    flex_count = 0
+    rel_count = 0
     # initialize behavior string
     beh_type = ""
 
     # initialize feature data and label data arrays
     y_train = []
     y_track = []
-    feature_data = np.empty((data_length/frames_per_block, number_of_features*frames_per_block), dtype = float)
+    feature_data = np.empty((data_length, number_of_features+1), dtype = float)
     neither_count = 0
+    fidget_count = 0
+    movement_count= 0
 
     # while we have block_zframes left for each training block, add feature vector to training data and label to training label
-    while data_length/frames_per_block >= 1:
+    while neither_count+ fidget_count <= 3000 and count < (len(fidget_vector) - (start_Frame + first_index)) and k+frames_per_block < (len(fidget_vector) - (start_Frame + first_index)):
         # get data of first frame
         temp = np.array(hf.get('frame number ' + str(int(k))))
         # for each frame, add the associated behavior attributes
-        beh_type += beh_present(hf.get('frame number ' + str(int(k))).attrs['behavior'])
+        # beh = mode_beh(beh_present(hf.get('frame number ' + str(int(k+15))).attrs['behavior']))
+        if fidget_vector[k] == 1:
+            beh = 0
+        elif movement_vector[0][k] == 1:
+            beh = 2
+        else:
+            beh = 1
+
 
         # Concatenate the feature vectors of the next block size frames
         for index in range(k+1, k+frames_per_block):
-            temp = np.hstack((temp, np.array(hf.get('frame number ' + str(int(index))))))
+            # temp = np.hstack((temp, np.array(hf.get('frame number ' + str(int(index))))))
+            temp = ((temp + np.array(hf.get('frame number ' + str(int(index)))))/2)
             # for each frame, add the associated behavior attributes
-            beh_type += beh_present(hf.get('frame number ' + str(int(k))).attrs['behavior'])
+            # beh_type += beh_present(hf.get('frame number ' + str(int(k))).attrs['behavior'])
         # set the corrrespoding row of feature data to concatenated frame features of size block_size
-        if mode_beh(beh_type) != 1 and neither_count <= 2000:
-            feature_data[count] = temp
-            y_train.append(mode_beh(beh_type))
+
+        if beh == 1 and neither_count <= 1500:
+            feature_data[count, 0:number_of_features] = temp
+            feature_data[count, number_of_features] = beh
+            y_train.append(beh)
             count += 1
-        elif mode_beh(beh_type) != 1 and neither_count > 2000:
-            if mode_beh(beh_type) == 2:
-                neither_count += 1
-            else:
-                feature_data[count] = temp
-                y_train.append(mode_beh(beh_type))
-                # iterate loop counter
-                count += 1
-        # iterate current frame
-        k += frames_per_block
-        # update how many frames are left to process
-        data_length = data_length - frames_per_block
-        # based on most frequent behavior in behavior attribute string, add label to training label for training block
-        if mode_beh(beh_type) == 2:
             neither_count += 1
-        y_track.append(mode_beh(beh_type))
+        elif beh == 0 and fidget_count <= 1500:
+            feature_data[count, 0:number_of_features] = temp
+            feature_data[count, number_of_features] = beh
+            y_train.append(beh)
+            count += 1
+            fidget_count += 1
+        elif beh == 2:
+            count += 1
+        # iterate current frame
+        k += 1
+        # update how many frames are left to process
+        data_length = data_length - 1
+        # based on most frequent behavior in behavior attribute string, add label to training label for training block
         # reset behavior attribute for next block
         beh_type = ""
+
+
 
 
     return {'feature_data': feature_data, 'y_train': y_train, 'y_track': y_track}
@@ -209,10 +280,9 @@ def mode_beh(string):
     if fidget > movement and fidget > neither:
         return 0
     elif movement > fidget and movement > neither:
-        return 1
-    else:
         return 2
-
+    else:
+        return 1
 
 
 def show_frame(frame):
@@ -222,7 +292,8 @@ def show_frame(frame):
 
 if __name__ == '__main__':
     # set limsID of video data to train on
-    lims_ID = ['501560436', '500860585', '497060401']
+    # '503412730', '497060401','502741583', '501004031', '500860585', '501560436', '503412730', '501773889'
+    lims_ID = ['501021421']
     # initialize training data and data label arrays, as well a a loop counter
     y_train = []
     y_track = []
@@ -231,7 +302,8 @@ if __name__ == '__main__':
 
     # for each limd_ID, get trainign and label data, and combine it with previous lims ID training and label data
     for itm in lims_ID:
-        data = get_data(itm)
+        ex = ep("C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation", itm)
+        data = get_data(itm, ex)
         if t == 0:
             y_train = data['y_train']
             y_track = data['y_track']
