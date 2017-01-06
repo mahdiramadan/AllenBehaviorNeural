@@ -34,7 +34,7 @@ import pdb
 from sklearn.decomposition import PCA
 
 def run_svm(final_data, y_vector, y_track):
-    scipy.io.savemat('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_2000_fidget_neither_503412730_497060401_502741583_501004031_500860585_501560436_503412730_501773889.mat', {'features':final_data})
+    scipy.io.savemat('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_2000_fidget_neither_movement_503412730_501021421.mat', {'features':final_data})
     # rows_n = len(final_data)
     # train = int(round(rows_n*0.75))
     #
@@ -211,7 +211,7 @@ def get_data(lims_ID, ep):
     movement_count= 0
 
     # while we have block_zframes left for each training block, add feature vector to training data and label to training label
-    while neither_count+ fidget_count <= 3000 and count < (len(fidget_vector) - (start_Frame + first_index)) and k+frames_per_block < (len(fidget_vector) - (start_Frame + first_index)):
+    while k+frames_per_block < len(fidget_vector)- first_index:
         # get data of first frame
         temp = np.array(hf.get('frame number ' + str(int(k))))
         # for each frame, add the associated behavior attributes
@@ -227,24 +227,32 @@ def get_data(lims_ID, ep):
         # Concatenate the feature vectors of the next block size frames
         for index in range(k+1, k+frames_per_block):
             # temp = np.hstack((temp, np.array(hf.get('frame number ' + str(int(index))))))
-            temp = ((temp + np.array(hf.get('frame number ' + str(int(index)))))/2)
+            try:
+                temp = ((temp + np.array(hf.get('frame number ' + str(int(index)))))/2)
+            except:
+                print(k)
+                continue
             # for each frame, add the associated behavior attributes
             # beh_type += beh_present(hf.get('frame number ' + str(int(k))).attrs['behavior'])
         # set the corrrespoding row of feature data to concatenated frame features of size block_size
 
-        if beh == 1 and neither_count <= 1500:
+        if beh == 1:
             feature_data[count, 0:number_of_features] = temp
             feature_data[count, number_of_features] = beh
             y_train.append(beh)
             count += 1
             neither_count += 1
-        elif beh == 0 and fidget_count <= 1500:
+        elif beh == 0:
             feature_data[count, 0:number_of_features] = temp
             feature_data[count, number_of_features] = beh
             y_train.append(beh)
             count += 1
             fidget_count += 1
         elif beh == 2:
+            feature_data[count, 0:number_of_features] = temp
+            feature_data[count, number_of_features] = beh
+            y_train.append(beh)
+            movement_count += 1
             count += 1
         # iterate current frame
         k += 1
@@ -257,7 +265,7 @@ def get_data(lims_ID, ep):
 
 
 
-    return {'feature_data': feature_data, 'y_train': y_train, 'y_track': y_track}
+    return {'feature_data': feature_data, 'y_train': y_train, 'y_track': y_track, 'number': fidget_count+neither_count + movement_count}
 
 def beh_present(string):
     # method will return the appropriate behavior label of interest based on its presence
@@ -309,6 +317,7 @@ if __name__ == '__main__':
             y_track = data['y_track']
             feature_data = data['feature_data'][0:len(y_train)]
             print(itm + ' video done')
+            print ( data['number'])
         else:
             y_vector = data['y_train']
             y_train = np.concatenate((y_train, y_vector))
@@ -316,6 +325,7 @@ if __name__ == '__main__':
             vector = data['feature_data'][0:len(y_vector)]
             feature_data = np.vstack((feature_data, vector))
             print(itm + ' video done')
+
         t += 1
 
     print('feature processing finished')
