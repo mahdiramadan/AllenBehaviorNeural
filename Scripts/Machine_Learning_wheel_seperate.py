@@ -34,7 +34,15 @@ import pdb
 from sklearn.decomposition import PCA
 
 def run_svm(final_data, y_vector, y_track):
-    scipy.io.savemat('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_2000_fidget_neither_movement_503412730_501021421.mat', {'features':final_data})
+    hf = h5py.File('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_all_fidget_neither_all.h5', 'w')
+    g = hf.create_group('feature space')
+    a= len(final_data)
+    try:
+        table = g.create_dataset('features', data=final_data, shape=(len(final_data), 5714))
+    except:
+        table = g.create_dataset('features', data=final_data, shape=(len(y_vector), 5714))
+    # final_data = np.float32(final_data)
+    # scipy.io.savemat('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_2000_fidget_neither_503412730_497060401_502741583_501004031_500860585_501560436_503412730_501773889.mat', {'features':final_data})
     # rows_n = len(final_data)
     # train = int(round(rows_n*0.75))
     #
@@ -44,15 +52,7 @@ def run_svm(final_data, y_vector, y_track):
     one = 0
     two = 0
     #
-    for i in range(0, len(y_vector)):
-        if (y_vector[i] == 0):
-            zero += 1
-        elif (y_vector[i] == 1):
-            one += 1
-        else:
-            two += 1
-    print(zero , one , two)
-    #
+
     # X_train, X_test, y_train, y_test = train_test_split(final_data, y_vector, test_size=0.35, random_state=32)
     #
     # # pca = PCA(n_components= 10)
@@ -165,6 +165,11 @@ def get_data(lims_ID, ep):
     wheel = joblib.load('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Wheel\dxds'+ str(lims_ID)+'.pkl')
     first_non_nan = next(x for x in wheel if not isnan(x))
     first_index = np.where(wheel == first_non_nan)[0]
+    imp = Imputer(missing_values='NaN', strategy='mean')
+
+    # normalize wheel data according to wheel scaler
+    wheel = imp.fit_transform(wheel)
+
 
     label = 'fidget'
     index = ep.get_labels().index(label) + 1
@@ -186,7 +191,7 @@ def get_data(lims_ID, ep):
 
     # store length of feature vectors
     number_of_features = 5713
-    # set desired frames per tarining block
+    # set desired frames per training block
     frames_per_block = 60
 
 
@@ -194,7 +199,11 @@ def get_data(lims_ID, ep):
     k = start_Frame + first_index
 
     # calculate how many frames the training data consists of
-    data_length = len(data_tables) - start_Frame
+    if len(data_tables) - start_Frame > 0:
+        data_length = len(data_tables) - start_Frame
+    else:
+        data_length = 0
+
     #initialize a counter
     count = 0
     flex_count = 0
@@ -206,19 +215,21 @@ def get_data(lims_ID, ep):
     y_train = []
     y_track = []
     feature_data = np.empty((data_length, number_of_features+1), dtype = float)
+    print(feature_data.dtype)
     neither_count = 0
     fidget_count = 0
     movement_count= 0
 
+
     # while we have block_zframes left for each training block, add feature vector to training data and label to training label
-    while k+frames_per_block < len(fidget_vector)- first_index:
+    while k+frames_per_block < len(data_tables):
         # get data of first frame
         temp = np.array(hf.get('frame number ' + str(int(k))))
         # for each frame, add the associated behavior attributes
         # beh = mode_beh(beh_present(hf.get('frame number ' + str(int(k+15))).attrs['behavior']))
-        if fidget_vector[k] == 1:
+        if fidget_vector[k+30] == 1:
             beh = 0
-        elif movement_vector[0][k] == 1:
+        elif movement_vector[0][k+30] == 1:
             beh = 2
         else:
             beh = 1
@@ -249,10 +260,6 @@ def get_data(lims_ID, ep):
             count += 1
             fidget_count += 1
         elif beh == 2:
-            feature_data[count, 0:number_of_features] = temp
-            feature_data[count, number_of_features] = beh
-            y_train.append(beh)
-            movement_count += 1
             count += 1
         # iterate current frame
         k += 1
@@ -262,10 +269,13 @@ def get_data(lims_ID, ep):
         # reset behavior attribute for next block
         beh_type = ""
 
+        if count%1000 == 0:
+            print(count)
 
 
 
-    return {'feature_data': feature_data, 'y_train': y_train, 'y_track': y_track, 'number': fidget_count+neither_count + movement_count}
+
+    return {'feature_data': feature_data, 'y_train': y_train, 'y_track': y_track, 'number': fidget_count+ neither_count + movement_count}
 
 def beh_present(string):
     # method will return the appropriate behavior label of interest based on its presence
@@ -301,7 +311,7 @@ def show_frame(frame):
 if __name__ == '__main__':
     # set limsID of video data to train on
     # '503412730', '497060401','502741583', '501004031', '500860585', '501560436', '503412730', '501773889'
-    lims_ID = ['501021421']
+    lims_ID = ['503412730', '497060401','502741583', '501004031', '500860585', '501560436', '503412730', '501773889']
     # initialize training data and data label arrays, as well a a loop counter
     y_train = []
     y_track = []
@@ -329,6 +339,4 @@ if __name__ == '__main__':
         t += 1
 
     print('feature processing finished')
-
-    # Now that we have all of our training data, feed data to method that will traing ML model
-    p = Process(target = run_svm(feature_data, y_train, y_track), args = (feature_data, y_train, y_track))
+    run_svm(feature_data, y_train, y_track)
