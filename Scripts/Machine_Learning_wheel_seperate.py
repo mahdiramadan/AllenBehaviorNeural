@@ -36,8 +36,8 @@ from sklearn.decomposition import PCA
 
 def run_svm(lims_id):
 
-    hf = h5py.File(('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\1_frame_all_fidget_neither_maxed.h5'), 'r')
-    hftest = h5py.File(('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Matlab\\\\60_frames_all_501574836.h5'), 'r')
+    hf = h5py.File(('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Pre_processed_training_testing_data\\\\60_frames_fidget_neither_maxed_front.h5'), 'r')
+    hftest = h5py.File(('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Pre_processed_training_testing_data\\\\60_frames_all_beh_501021421_front.h5'), 'r')
 
     g1 = hf.get('feature space')
     g2 = hftest.get('feature space')
@@ -45,11 +45,11 @@ def run_svm(lims_id):
     test_data = np.array(g2.get('features'))
     all_data = np.array(g1.get('features'))
 
-    x_train = all_data[:, 0:5713]
-    y_train = all_data[:, 5713]
+    x_train = all_data[:, 0:3521]
+    y_train = all_data[:, 3521]
 
-    x_test = test_data[:, 0:5713]
-    y_test= test_data[:, 5713]
+    x_test = test_data[:, 0:3521]
+    y_test= test_data[:, 3521]
 
     # estimator = SVC(kernel="rbf")
     # selector = RFE(estimator, step=1)
@@ -60,7 +60,7 @@ def run_svm(lims_id):
 
 
 
-    wheel = joblib.load('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Wheel\dxds501574836.pkl')
+    wheel = joblib.load('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Wheel\dxds501021421.pkl')
     first_non_nan = next(x for x in wheel if not isnan(x))
     first_index = np.where(wheel == first_non_nan)[0]
     imp = Imputer(missing_values='NaN', strategy='mean')
@@ -68,7 +68,7 @@ def run_svm(lims_id):
     # normalize wheel data according to wheel scaler
     wheel = imp.fit_transform(wheel)
 
-    ep = ex("C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation", '501574836')
+    ep = ex("C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation", '501021421')
 
     label = 'fidget'
     index = ep.get_labels().index(label) + 1
@@ -151,9 +151,9 @@ def run_svm(lims_id):
     #     print(classification_report(y_true, y_pred))
     #     print()
 
-    gamma = [ 10e-5]
-    C = [1, 10]
-
+    gamma = [ 10e-5 ]
+    C = [0.1, 1, 10]
+    print ('60 frames')
 
     for g in gamma:
         for c in C:
@@ -162,11 +162,11 @@ def run_svm(lims_id):
             #         x_train = x_train_reduced
             #         x_test = x_test_reduced
             print(" training model ")
-            clf = SVC(kernel='rbf', C= c, gamma= g, cache_size= 20000)
+            clf = SVC(kernel='rbf', C= c, gamma= g, cache_size= 200000)
 
             clf.fit(x_train, y_train)
             print(" saving model ")
-            joblib.dump(clf, 'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\ML Models\one_frames_SVM_all_frames' + str(c)+'_'+str(g)+'.pkl')
+            joblib.dump(clf, 'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Pre_processed_training_testing_data\\thirty_frames_SVM_all_frames_front' + str(c)+'_'+str(g)+'.pkl')
             # clf = joblib.load('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\ML Models\clf_movement_fidget_only_0585no_wheel_larger_data.pkl')
             y_pred = []
             print(" predicting data ")
@@ -174,10 +174,12 @@ def run_svm(lims_id):
             k = 0
 
             for index in range (len(x_test)):
-                if wheel[index+first_index] > 6:
+                if wheel[index+first_index] > 3:
                     y_pred.append(2)
                 else:
                     y_pred.append(clf.predict(x_test[index, :].reshape(1, -1)))
+
+            joblib.dump(y_pred, 'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Predicted behavior\\thirty_frame_front_1421' + str(c) + str(gamma) + '.pkl')
 
             true_positive_fidget = 0
             false_positive_fidget = 0
@@ -203,7 +205,7 @@ def run_svm(lims_id):
                     true_negative_fidget += 1
                 elif y_pred[index] == 0 and fidget_vector[index+first_index] != 1:
                     false_positive_fidget += 1
-            with open('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Results2.txt', 'w') as file_out:
+            with open('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Results_30_frame_1421.txt', 'w') as file_out:
                 # if item == 'true':
                 #     print('Feature Selection on')
                 #     file_out.write ('Feature Selection on \\\\n')
