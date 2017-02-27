@@ -34,7 +34,7 @@ import pdb
 from sklearn.decomposition import PCA
 
 def run_svm(final_data, y_vector, y_track):
-    hf = h5py.File('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Pre_processed_training_testing_data\\\\300_frames_all_beh_all_front.h5', 'w')
+    hf = h5py.File('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Pre_processed_training_testing_data\\\\300_frames_all_beh_all_front_blocks.h5', 'w')
     g = hf.create_group('feature space')
     a= len(final_data)
     try:
@@ -91,11 +91,6 @@ def get_data(lims_ID, ep):
     movement_vector = []
     movement_vector.append([sum(x) for x in zip(walking, running)])
 
-    relevant_fidget = 0
-
-    for i in range (len(fidget_vector)):
-        if fidget_vector[i] == 1:
-            relevant_fidget += 1
 
     # set your desired starting frame relative to first_index
     start_Frame = 0
@@ -103,11 +98,44 @@ def get_data(lims_ID, ep):
     # store length of feature vectors
     number_of_features = 3521
     # set desired frames per training block
-    frames_per_block = 300
+    frames_per_block = 60
 
 
     # update k to fist_index plus any desired start frame offset!!!
     k = start_Frame + first_index
+
+
+
+    relevant_fidget = 0
+    relevant_movement = 0
+    relevant_neither = 0
+
+    max_fidget = 0
+    max_neither = 0
+    max_movement = 0
+
+    for i in range (k, len(data_tables), frames_per_block):
+        for k in range (k, k + frames_per_block):
+            if fidget_vector[k] == 1:
+                relevant_fidget += 1
+            if movement_vector[0][k] == 1:
+                relevant_movement += 1
+            if movement_vector[0][k] == 0 or fidget_vector[k] == 0:
+                relevant_neither += 1
+
+        if relevant_fidget >= relevant_movement and relevant_fidget >= relevant_neither:
+            max_fidget += 1
+        elif relevant_movement > relevant_fidget and relevant_movement > relevant_neither:
+            max_movement += 1
+        else:
+            max_neither += 1
+
+        relevant_fidget = 0
+        relevant_movement = 0
+        relevant_neither = 0
+
+
+
 
     # calculate how many frames the training data consists of
     if len(data_tables) - start_Frame > 0:
@@ -137,9 +165,30 @@ def get_data(lims_ID, ep):
         # get data of first frame
         # for each frame, add the associated behavior attributes
         # beh = mode_beh(beh_present(hf.get('frame number ' + str(int(k+15))).attrs['behavior']))
-        if fidget_vector[k + int(frames_per_block/2)] == 1:
+
+        fidget_present = 0
+
+        for i in range(k, k+frames_per_block):
+            if fidget_vector[i] == 1:
+                fidget_present += 1
+
+        movement_present = 0
+
+        for i in range(k, k+frames_per_block):
+            if movement_vector[0][i] == 1:
+                movement_present += 1
+
+        neither_present = 0
+
+        for i in range(k, k+frames_per_block):
+            if movement_vector[0][i] == 0 or fidget_vector[i] == 0:
+                neither_present += 1
+
+
+
+        if fidget_present >= movement_present and fidget_present >= neither_present:
             beh = 0
-        elif movement_vector[0][k + int(frames_per_block/2)] == 1:
+        elif movement_present > fidget_present and movement_present > neither_present:
             beh = 2
         else:
             beh = 1
@@ -148,7 +197,7 @@ def get_data(lims_ID, ep):
 
 
         # set the corrrespoding row of feature data to concatenated frame features of size block_size
-        if beh == 1 and neither_count <= relevant_fidget:
+        if beh == 1 and neither_count <= max_fidget:
             feature_data[count, 0:number_of_features] = temp
             feature_data[count, number_of_features] = beh
             y_train.append(beh)
@@ -164,7 +213,7 @@ def get_data(lims_ID, ep):
             count += 1
             movement_count += 1
         # iterate current frame
-        k += 1
+        k += frames_per_block
         # update how many frames are left to process
         data_length = data_length - 1
         # based on most frequent behavior in behavior attribute string, add label to training label for training block
@@ -213,7 +262,7 @@ def show_frame(frame):
 if __name__ == '__main__':
     # set limsID of video data to train on
     # '503412730', '497060401','502741583', '501004031', '500860585', '501560436'
-    lims_ID = ['503412730', '497060401','502741583', '501004031', '500860585', '501560436']
+    lims_ID = [ '502741583', '501004031', '500860585', '501560436']
     # initialize training data and data label arrays, as well a a loop counter
     y_train = []
     y_track = []
