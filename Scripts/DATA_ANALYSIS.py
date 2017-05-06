@@ -40,8 +40,6 @@ from psycopg2 import connect
 def run (ids , ann_data):
     # create CAM stimulus definition visual
     count = 0
-    used = 0
-    print ( ' we have a total of ' + str(len(ids)) + ' videos')
 
     db_params = {
         u'dbname': u'lims2',
@@ -79,44 +77,24 @@ def run (ids , ann_data):
     results_mov = [[] for _ in range(len(stimuli))]
     results_neither = [[] for _ in range(len(stimuli))]
 
-    results_A_fid = [[] for _ in range(len(stimuli))]
-    results_B_fid= [[] for _ in range(len(stimuli))]
-    results_C_fid = [[] for _ in range(len(stimuli))]
-
-    results_A_mov = [[] for _ in range(len(stimuli))]
-    results_B_mov= [[] for _ in range(len(stimuli))]
-    results_C_mov = [[] for _ in range(len(stimuli))]
-
-    results_A_neither = [[] for _ in range(len(stimuli))]
-    results_B_neither = [[] for _ in range(len(stimuli))]
-    results_C_neither = [[] for _ in range(len(stimuli))]
-
-    A_fid = []
-    B_fid = []
-    C_fid = []
-
-    A_neither = []
-    B_neither = []
-    C_neither = []
-
-    A_mov = []
-    B_mov = []
-    C_mov = []
+    func = 0
+    print( len(ids))
 
     for id in ids:
 
         qc_status = np.array(find_status(id))
         status = qc_status[(0)][1]
 
-        if status is not None and 'published' in status:
+        if status is not None and 'failed' not in status:
 
-            # # get nwb file data
-            # nwb_file = open_nwb(id)
-            # if not nwb_file:
-            #     count += 1
-            #     continue
+            # get nwb file data
 
-            used += 1
+            nwb_file = open_nwb(id)
+            if not nwb_file:
+                count += 1
+                continue
+
+            func += 1
             stimulus = qc_status[(0)][2]
 
             data = ann_data[count]
@@ -136,284 +114,113 @@ def run (ids , ann_data):
                 if data[f] == 2:
                     t_mov += 1
 
-            # # open data to presentation branch
-            # visual = nwb_file['stimulus']['presentation']
-            #
-            # # iterate over stimulus types, if type is found in data, then get frame durations
-            # for stim in stimuli:
-            #     if stim in visual:
-            #
-            #         # get unique frame numbers
-            #         try:
-            #             frames = np.unique([nwb_file['stimulus']['presentation'][stim]['data']])
-            #         except:
-            #             print( 'could not access stimulus timing files for id ' + str(id))
-            #         num_stim = []
-            #
-            #         # to get continuous frame ranges, un-comment code right below
-            #         # ranges = []
-            #         # for k, g in groupby(enumerate(frames), lambda (i, x): i - x):
-            #         #     group = map(itemgetter(1), g)
-            #         #     ranges.append((group[0], group[-1]))
-            #         a = 0
-            #         b = 0
-            #         c = 0
-            #
-            #         if len(frames) > 1:
-            #             for i in range(0, len(frames)-1, 2):
-            #                 # If frame ranges is of length less than 150, then assume it is giving frame ranges. Otherwise,
-            #                 # assume it is giving individual frames ( range e.g. 0 - 10000,
-            #                 # individual e.g. 0, 1, 2, 3.... 10000)
-            #                 # shortest stimulus is 30 seconds, longest movie is 3800 seconds, 3800/30 is about 150
-            #                 # Thus, you wil never have more than 150 discrete frame ranges
-            #                 if math.isnan(frames[i]) or math.isnan(frames[i+1]) or frames[i+1] < 0 or frames[i] < 0:
-            #                     # print('NaN values for Stimulus frames for ' + str(id) + ' with stimulus ' + str(stim))
-            #                     continue
-            #                 else:
-            #                     num_stim.append(frames[i+1] - frames[i])
-            #                     for k in range(int(frames[i]), int(frames[i+1])):
-            #                         try:
-            #                             if data[int(k)] == 0:
-            #                                 a += 1
-            #                             elif data[int(k)] == 1:
-            #                                 b += 1
-            #                             else:
-            #                                 c+= 1
-            #
-            #                         except:
-            #                             continue
-            #
-            #
-            #         elif len(frames) <= 1:
-            #             print ( ' abnormal frame count for stimulus for id ' + str(id) + ' for stimulus ' + str(stim))
-            #             continue
-            #
-            #
-            #     # if type if not in data, take next type
-            #     else:
-            #         continue
-            #
-            #     if stimulus == 'three_session_A':
-            #         try:
-            #             if ((a/float(np.sum(num_stim)))*100) <= 100:
-            #                 results_A_fid[int(stimuli.index(stim))].append((a/float(np.sum(num_stim)))*100)
-            #                 A_fid.append((a/float(np.sum(num_stim)))*100)
-            #             else:
-            #                 print ('abnormal fidget behavior frequency rate for ' + str(id) + ' during ' + str(stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #
-            #         try:
-            #             if ((b/ float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_A_neither[int(stimuli.index(stim))].append((b / float(np.sum(num_stim))) * 100)
-            #                 A_neither.append((b / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print ('abnormal neither behavior frequency rate for ' + str(id) + ' during ' + str(stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #
-            #         try:
-            #             if ((c/ float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_A_mov[int(stimuli.index(stim))].append((c / float(np.sum(num_stim))) * 100)
-            #                 A_mov.append((c / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print ('abnormal movement behavior frequency rate for ' + str(id) + ' during ' + str(stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #     if stimulus == 'three_session_B':
-            #         try:
-            #             if ((a / float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_B_fid[int(stimuli.index(stim))].append((a / float(np.sum(num_stim))) * 100)
-            #                 B_fid.append ((a / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print ('abnormal fidget behavior frequency rate for ' + str(id) + ' during ' + str(
-            #                     stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #         try:
-            #             if ((b / float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_B_neither[int(stimuli.index(stim))].append(
-            #                     (b / float(np.sum(num_stim))) * 100)
-            #                 B_neither.append((b / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print ('abnormal neither behavior frequency rate for ' + str(id) + ' during ' + str(
-            #                     stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #         try:
-            #             if ((c / float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_B_mov[int(stimuli.index(stim))].append((c / float(np.sum(num_stim))) * 100)
-            #                 B_mov.append((c / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print (
-            #                 'abnormal movement behavior frequency rate for ' + str(id) + ' during ' + str(
-            #                     stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #     if stimulus == 'three_session_C':
-            #         try:
-            #             if ((a / float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_C_fid[int(stimuli.index(stim))].append((a / float(np.sum(num_stim))) * 100)
-            #                 C_fid.append((a / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print ('abnormal fidget behavior frequency rate for ' + str(id) + ' during ' + str(
-            #                     stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #         try:
-            #             if ((b / float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_C_neither[int(stimuli.index(stim))].append(
-            #                     (b / float(np.sum(num_stim))) * 100)
-            #                 C_neither.append((b / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print ('abnormal neither behavior frequency rate for ' + str(id) + ' during ' + str(
-            #                     stim) + ' stimulus')
-            #         except:
-            #             continue
-            #
-            #         try:
-            #             if ((c / float(np.sum(num_stim))) * 100) <= 100:
-            #                 results_C_mov[int(stimuli.index(stim))].append((c / float(np.sum(num_stim))) * 100)
-            #                 C_mov.append((c / float(np.sum(num_stim))) * 100)
-            #             else:
-            #                 print (
-            #                 'abnormal movement behavior frequency rate for ' + str(id) + ' during ' + str(
-            #                     stim) + ' stimulus')
-            #         except:
-            #             continue
-            #     # print (str(stim) + ' has ' + str(sum) + str(label))
-            # count += 1
+            # open data to presentation branch
+            visual = nwb_file['stimulus']['presentation']
 
-            if stimulus == 'three_session_A':
-                A_fid.append(((t_fid)/float(len(data)))*100)
-                A_neither.append(((t_neither)/float(len(data)))*100)
-                A_mov.append(((t_mov)/float(len(data)))*100)
+            # iterate over stimulus types, if type is found in data, then get frame durations
+            for stim in stimuli:
+                if stim in visual:
 
-            if stimulus == 'three_session_B':
-                B_fid.append(((t_fid) / float(len(data)))*100)
-                B_neither.append(((t_neither) / float(len(data)))*100)
-                B_mov.append(((t_mov) / float(len(data)))*100)
+                    # get unique frame numbers
+                    try:
+                        frames = np.unique([nwb_file['stimulus']['presentation'][stim]['data']])
+                    except:
+                        print( 'could not access stimulus timing files for id ' + str(id))
+                    num_stim = []
 
-            if stimulus == 'three_session_C':
-                C_fid.append(((t_fid) / float(len(data)))*100)
-                C_neither.append(((t_neither) / float(len(data)))*100)
-                C_mov.append(((t_mov) / float(len(data)))*100)
+                    # to get continuous frame ranges, un-comment code right below
+                    # ranges = []
+                    # for k, g in groupby(enumerate(frames), lambda (i, x): i - x):
+                    #     group = map(itemgetter(1), g)
+                    #     ranges.append((group[0], group[-1]))
+                    a= 0
+                    b = 0
+                    c = 0
+
+                    if len(frames) > 1:
+                        for i in range(0, len(frames)-1, 2):
+                            # If frame ranges is of length less than 150, then assume it is giving frame ranges. Otherwise,
+                            # assume it is giving individual frames ( range e.g. 0 - 10000,
+                            # individual e.g. 0, 1, 2, 3.... 10000)
+                            # shortest stimulus is 30 seconds, longest movie is 3800 seconds, 3800/30 is about 150
+                            # Thus, you wil never have more than 150 discrete frame ranges
+                            if math.isnan(frames[i]) or math.isnan(frames[i+1]) or frames[i+1] < 0 or frames[i] < 0:
+                                # print('NaN values for Stimulus frames for ' + str(id) + ' with stimulus ' + str(stim))
+                                continue
+                            else:
+                                num_stim.append(frames[i+1] - frames[i])
+                                for k in range(int(frames[i]), int(frames[i+1])):
+                                    try:
+                                        if data[int(k)] == 0:
+                                            a += 1
+                                        elif data[int(k)] == 1:
+                                            b += 1
+                                        else:
+                                            c+= 1
+
+                                    except:
+                                        continue
+
+
+                    elif len(frames) <= 1:
+                        print ( ' abnormal frame count for stimulus for id ' + str(id) + ' for stimulus ' + str(stim))
+                        continue
+
+
+                # if type if not in data, take next type
+                else:
+                    continue
+
+                # if stimulus == 'Stimulus'
+                try:
+                    if ((a/float(np.sum(num_stim)))*100) <= 100 and ((a/float(np.sum(num_stim)))*100) != 0:
+                        results_fid[int(stimuli.index(stim))].append((a/float(np.sum(num_stim)))*100)
+
+                except:
+
+                    continue
+
+                try:
+                    if ((b/ float(np.sum(num_stim))) * 100) <= 100 and ((b/ float(np.sum(num_stim))) * 100) != 0:
+                        results_neither[int(stimuli.index(stim))].append((b / float(np.sum(num_stim))) * 100)
+
+                except:
+
+                    continue
+
+                try:
+                    if ((c/ float(np.sum(num_stim))) * 100) <= 100 and ((c/ float(np.sum(num_stim))) * 100) != 0:
+                        results_mov[int(stimuli.index(stim))].append((c / float(np.sum(num_stim))) * 100)
+
+                except:
+
+                    continue
+                # print (str(stim) + ' has ' + str(sum) + str(label))
+            count += 1
 
         else:
             count += 1
+    print(func)
 
 
-    print ( ' We used ' + str(used) + ' videos in analysis')
+    for stim in stimuli:
+        common_params = dict(bins=20,
+                             range=(0, 100),
+                             normed=False
+                             )
+        print( str(stim))
+        print (str(np.mean(results_fid[int(stimuli.index(stim))])) + ' ' + str(np.std(results_fid[int(stimuli.index(stim))])))
+        print (str(np.mean(results_mov[int(stimuli.index(stim))])) + ' ' + str(np.std(results_mov[int(stimuli.index(stim))])))
+        print (str(np.mean(results_neither[int(stimuli.index(stim))])) + ' ' + str(np.std(results_neither[int(stimuli.index(stim))])))
+        print ()
 
-    with open('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\Results_Stimulus_Type_Behavior.txt', 'w') as file_out:
-        # if item == 'true':
-        #     print('Feature Selection on')
-        #     file_out.write ('Feature Selection on \\\\n')
-
-        file_out.write(' For Fidget Behavior in Stimulus A we get these results: ' + str(A_fid) + '\n')
-        file_out.write(' For Fidget Behavior in Stimulus B we get these results: ' + str(B_fid) + '\n')
-        file_out.write(' For Fidget Behavior in Stimulus C we get these results: ' + str(C_fid) + '\n')
-        file_out.write(' For Neither Behavior in Stimulus A we get these results: ' + str(A_neither) + '\n')
-        file_out.write(' For Neither Behavior in Stimulus B we get these results: ' + str(B_neither) + '\n')
-        file_out.write(' For Neither Behavior in Stimulus C we get these results: ' + str(C_neither) + '\n')
-        file_out.write(' For Movement Behavior in Stimulus A we get these results: ' + str(A_mov) + '\n')
-        file_out.write(' For Movement Behavior in Stimulus B we get these results: ' + str(B_mov) + '\n')
-        file_out.write(' For Movement Behavior in Stimulus C we get these results: ' + str(C_mov) + '\n')
-
-
-
-
-
-        # common_params = dict(bins=10,
-    #                      range=(0, 100),
-    #                      normed=False
-    #                      )
-    #
-    # plt.hist((A_fid, B_fid,
-    #           C_fid),
-    #          label=('Stimulus A', 'Stimulus B', 'Stimulus C'), **common_params)
-    # plt.legend(loc='upper right')
-    # plt.xlabel(' Fraction of Frames Displaying Behavior')
-    # plt.ylabel(' Number of Experiments ')
-    # plt.title('Distribution of Fidget Behavior Frequency')
-    # plt.show()
-    #
-    # common_params = dict(bins=10,
-    #                      range=(0, 100),
-    #                      normed=False
-    #                      )
-    #
-    # plt.hist((A_neither, B_neither,
-    #           C_neither),
-    #          label=('Stimulus A', 'Stimulus B', 'Stimulus C'), **common_params)
-    # plt.legend(loc='upper right')
-    # plt.xlabel('Fraction of Frames Displaying Behavior')
-    # plt.ylabel(' Number of Experiments ')
-    # plt.title('Distribution of Neither Behavior Frequency')
-    # plt.show()
-    #
-    # common_params = dict(bins=10,
-    #                      range=(0, 100),
-    #                      normed=False
-    #                      )
-    #
-    # plt.hist((A_mov, B_mov,
-    #           C_mov),
-    #          label=('Stimulus A', 'Stimulus B', 'Stimulus C'), **common_params)
-    # plt.legend(loc='upper right')
-    # plt.xlabel(' Fraction of Frames Displaying Behavior')
-    # plt.ylabel(' Number of Experiments ')
-    # plt.title('Distribution of Movement Behavior Frequency')
-    # plt.show()
-
-    # for stim in stimuli:
-    #     common_params = dict(bins=20,
-    #                          range=(0, 100),
-    #                          normed=False
-    #                          )
-    #
-    #     plt.hist((results_A_fid[int(stimuli.index(stim))], results_B_fid[int(stimuli.index(stim))], results_C_fid[int(stimuli.index(stim))]),
-    #              label=('Stimulus A', 'Stimulus B', 'Stimulus C'), **common_params)
-    #     plt.legend(loc='upper left')
-    #     plt.xlabel(' Ratio of ' + str(stim) + ' Frames Displaying Behavior')
-    #     plt.ylabel(' Number of Experiments ')
-    #     plt.title('Distribution of Fidget Behavior Frequency During '  + str(stim) +' Stimuli')
-    #     plt.show()
-    #
-    # for stim in stimuli:
-    #     common_params = dict(bins=20,
-    #                          range=(0, 100),
-    #                          normed=False
-    #                          )
-    #
-    #     plt.hist((results_A_neither[int(stimuli.index(stim))], results_B_neither[int(stimuli.index(stim))], results_C_neither[int(stimuli.index(stim))]),
-    #              label=('Stimulus A', 'Stimulus B', 'Stimulus C'), **common_params)
-    #     plt.legend(loc='upper left')
-    #     plt.xlabel(' Ratio of ' + str(stim) + ' Frames Displaying Behavior')
-    #     plt.ylabel(' Number of Experiments ')
-    #     plt.title('Distribution of Neither Behavior Frequency During '  + str(stim) +' Stimuli')
-    #     plt.show()
-    #
-    # for stim in stimuli:
-    #     common_params = dict(bins=20,
-    #                          range=(0, 100),
-    #                          normed=False
-    #                          )
-    #
-    #     plt.hist((results_A_mov[int(stimuli.index(stim))], results_B_mov[int(stimuli.index(stim))], results_C_mov[int(stimuli.index(stim))]),
-    #              label=('Stimulus A', 'Stimulus B', 'Stimulus C'), **common_params)
-    #     plt.legend(loc='upper left')
-    #     plt.xlabel(' Ratio of ' + str(stim) + ' Frames Displaying Behavior')
-    #     plt.ylabel(' Number of Experiments ')
-    #     plt.title('Distribution of Fidget Behavior Frequency During '  + str(stim) +' Stimuli')
-    #     plt.show()
+        plt.hist((results_fid[int(stimuli.index(stim))], results_mov[int(stimuli.index(stim))], results_neither[int(stimuli.index(stim))]),
+                 label=('Fidget Frequency', 'Movement Frequency', 'Neither frequency'), **common_params)
+        plt.legend(loc='upper right')
+        plt.xlabel(' Ratio of ' + str(stim) + ' Displaying Behavior')
+        plt.ylabel(' Number of Experiments ')
+        plt.title('Distribution of Behavior Frequency During '  + str(stim) )
+        plt.show()
 
 
 def open_nwb(lims_ID):
@@ -455,7 +262,7 @@ def create_histogram (data):
             values_movement.append((float(m) / len(data[i]))*100)
             values_neither.append((float(n) / len(data[i]))*100)
 
-            # if ((float(f) / len(data[i]))*100) > 50:
+            # if ((float(m) / len(data[i]))*100) < 2:
             #     print(i)
         except:
             continue
@@ -526,8 +333,8 @@ def get_all_data (lims_ids):
 if __name__ == '__main__':
     text_file = open("C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\LIMS_IDS.txt", "r")
     lims_ids = text_file.read().split(',')
-    # print (lims_ids[69] + lims_ids[12] + lims_ids[44] + lims_ids[60] + lims_ids[64] + lims_ids[97])
+    # print (lims_ids[5] + lims_ids[12] + lims_ids[14] + lims_ids[25] +lims_ids[34] + lims_ids[41] +lims_ids[46] + lims_ids[49]  +lims_ids[54] + lims_ids[55]   )
     ann_data = get_all_data(lims_ids)
     # create_histogram(ann_data)
-
+    #
     run(lims_ids, ann_data)
