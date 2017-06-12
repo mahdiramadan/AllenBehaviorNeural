@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import h5py
 from pylab import *
+import xlsxwriter
 from math import log
 from scipy import stats
 from skimage.feature import hog
@@ -34,6 +35,8 @@ from sklearn.feature_selection import RFE
 import time
 import pdb
 from psycopg2 import connect
+import warnings
+
 
 
 
@@ -49,7 +52,11 @@ def run (ids , ann_data):
         u'port': 5432
     }
 
-    QUERY = "SELECT ec.id, ec.workflow_state, eso.stimulus_name, eso.id, eso.workflow_state FROM experiment_sessions eso LEFT JOIN experiment_containers ec ON ec.id = eso.experiment_container_id WHERE eso.id='{}';"
+    QUERY = " ".join(("SELECT sp.name, ec.id, ec.workflow_state, eso.stimulus_name, eso.id, eso.workflow_state",
+                      "FROM experiment_sessions eso",
+                      "LEFT JOIN experiment_containers ec ON ec.id = eso.experiment_container_id",
+                      "JOIN specimens sp ON sp.id=eso.specimen_id",
+                      "WHERE eso.id='{}';"))
 
     def get_db_cursor(dbname, user, host, password, port):
         con = connect(dbname=dbname,
@@ -78,150 +85,265 @@ def run (ids , ann_data):
     results_neither = [[] for _ in range(len(stimuli))]
 
     func = 0
-    print( len(ids))
+
+    A_count = 0
+    B_count = 0
+    C_count = 0
+
+
+    stim_A_fidget_cux2 = []
+    stim_A_fidget_emx1 = []
+    stim_A_fidget_nr5a1 = []
+    stim_A_fidget_rbp4 = []
+    stim_A_fidget_rorb = []
+    stim_A_fidget_scnn1a = []
+
+    stim_B_fidget_cux2 = []
+    stim_B_fidget_emx1 = []
+    stim_B_fidget_nr5a1 = []
+    stim_B_fidget_rbp4 = []
+    stim_B_fidget_rorb = []
+    stim_B_fidget_scnn1a = []
+
+    stim_A_fidget = []
+    stim_B_fidget = []
+    stim_C_fidget = []
+
+    excel_data = pandas.read_excel('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\global_report.xlsx', sheetname = 'all')
+    excel_ids = excel_data['lims ID']
+    a= excel_ids[0]
+
 
     for id in ids:
+        try :
+            qc_status = np.array(find_status(id))
+            mouse = qc_status[(0)][0].split(';')
+            cre = mouse[0].split(',')
+            creline = cre[0]
+            mouse_id_whole = mouse[2].split('-')
+            mouse_id = mouse_id_whole[1]
 
-        qc_status = np.array(find_status(id))
-        status = qc_status[(0)][1]
 
-        if status is not None and 'failed' not in status:
+            stim = qc_status[(0)][3]
+            count_t = 0
 
-            # get nwb file data
+            if stim == 'three_session_B':
+                data = ann_data[count]
 
-            nwb_file = open_nwb(id)
-            if not nwb_file:
-                count += 1
-                continue
+                t_fid = 0
+                for f in range(len(data)):
+                    if data[f] == 0:
+                        t_fid += 1
 
-            func += 1
-            stimulus = qc_status[(0)][2]
-
-            data = ann_data[count]
-
-            t_fid = 0
-            for f in range(len(data)):
-                if data[f] == 0:
-                    t_fid += 1
-
-            t_neither = 0
-            for f in range(len(data)):
-                if data[f] == 1:
-                    t_neither += 1
-
-            t_mov = 0
-            for f in range(len(data)):
-                if data[f] == 2:
-                    t_mov += 1
-
-            # open data to presentation branch
-            visual = nwb_file['stimulus']['presentation']
-
-            # iterate over stimulus types, if type is found in data, then get frame durations
-            for stim in stimuli:
-                if stim in visual:
-
-                    # get unique frame numbers
+                for m in ids:
                     try:
-                        frames = np.unique([nwb_file['stimulus']['presentation'][stim]['data']])
-                    except:
-                        print( 'could not access stimulus timing files for id ' + str(id))
-                    num_stim = []
+                        qc_status_t = np.array(find_status(m))
+                        mouse_t = qc_status_t[(0)][0].split(';')
+                        cre_t = mouse_t[0].split(',')
+                        creline_t = cre_t[0]
+                        mouse_id_whole_t= mouse_t[2].split('-')
+                        mouse_id_t= mouse_id_whole_t[1]
+                        stim_t = qc_status_t[(0)][3]
 
-                    # to get continuous frame ranges, un-comment code right below
-                    # ranges = []
-                    # for k, g in groupby(enumerate(frames), lambda (i, x): i - x):
-                    #     group = map(itemgetter(1), g)
-                    #     ranges.append((group[0], group[-1]))
-                    a= 0
-                    b = 0
-                    c = 0
+                        if mouse_id == mouse_id_t and stim_t == 'three_session_C' and m != id:
+                            data_t = ann_data[count_t]
 
-                    if len(frames) > 1:
-                        for i in range(0, len(frames)-1, 2):
-                            # If frame ranges is of length less than 150, then assume it is giving frame ranges. Otherwise,
-                            # assume it is giving individual frames ( range e.g. 0 - 10000,
-                            # individual e.g. 0, 1, 2, 3.... 10000)
-                            # shortest stimulus is 30 seconds, longest movie is 3800 seconds, 3800/30 is about 150
-                            # Thus, you wil never have more than 150 discrete frame ranges
-                            if math.isnan(frames[i]) or math.isnan(frames[i+1]) or frames[i+1] < 0 or frames[i] < 0:
-                                # print('NaN values for Stimulus frames for ' + str(id) + ' with stimulus ' + str(stim))
-                                continue
+                            t_fid_t = 0
+                            for f in range(len(data_t)):
+                                if data_t[f] == 0:
+                                    t_fid_t += 1
+                            if creline_t == 'Cux2-CreERT2':
+                                stim_A_fidget_cux2.append(round((float(t_fid)/len(data))*100, 2))
+                                stim_B_fidget_cux2.append(round ((float(t_fid_t)/len(data_t))*100, 2))
+                            elif creline_t == 'Emx1-IRES-Cre':
+                                stim_A_fidget_emx1.append(round((float(t_fid)/len(data))*100, 2))
+                                stim_B_fidget_emx1.append(round ((float(t_fid_t)/len(data_t))*100, 2))
+                            elif creline_t == 'Nr5a1-Cre':
+                                stim_A_fidget_nr5a1.append(round((float(t_fid)/len(data))*100, 2))
+                                stim_B_fidget_nr5a1.append(round ((float(t_fid_t)/len(data_t))*100, 2))
+                            elif creline_t == 'Rbp4-Cre':
+                                stim_A_fidget_rbp4.append(round((float(t_fid)/len(data))*100, 2))
+                                stim_B_fidget_rbp4.append(round ((float(t_fid_t)/len(data_t))*100, 2))
+                            elif creline_t == 'Rorb-IRES2-Cre':
+                                stim_A_fidget_rorb.append(round((float(t_fid)/len(data))*100, 2))
+                                stim_B_fidget_rorb.append(round ((float(t_fid_t)/len(data_t))*100, 2))
+                            elif creline_t == 'Scnn1a-Tg3-Cre':
+                                stim_A_fidget_scnn1a.append(round((float(t_fid)/len(data))*100, 2))
+                                stim_B_fidget_scnn1a.append(round ((float(t_fid_t)/len(data_t))*100, 2))
                             else:
-                                num_stim.append(frames[i+1] - frames[i])
-                                for k in range(int(frames[i]), int(frames[i+1])):
-                                    try:
-                                        if data[int(k)] == 0:
-                                            a += 1
-                                        elif data[int(k)] == 1:
-                                            b += 1
-                                        else:
-                                            c+= 1
-
-                                    except:
-                                        continue
+                                print(creline_t)
 
 
-                    elif len(frames) <= 1:
-                        print ( ' abnormal frame count for stimulus for id ' + str(id) + ' for stimulus ' + str(stim))
+                        count_t += 1
+                    except:
+                        count_t += 1
                         continue
 
-
-                # if type if not in data, take next type
-                else:
-                    continue
-
-                # if stimulus == 'Stimulus'
-                try:
-                    if ((a/float(np.sum(num_stim)))*100) <= 100 and ((a/float(np.sum(num_stim)))*100) != 0:
-                        results_fid[int(stimuli.index(stim))].append((a/float(np.sum(num_stim)))*100)
-
-                except:
-
-                    continue
-
-                try:
-                    if ((b/ float(np.sum(num_stim))) * 100) <= 100 and ((b/ float(np.sum(num_stim))) * 100) != 0:
-                        results_neither[int(stimuli.index(stim))].append((b / float(np.sum(num_stim))) * 100)
-
-                except:
-
-                    continue
-
-                try:
-                    if ((c/ float(np.sum(num_stim))) * 100) <= 100 and ((c/ float(np.sum(num_stim))) * 100) != 0:
-                        results_mov[int(stimuli.index(stim))].append((c / float(np.sum(num_stim))) * 100)
-
-                except:
-
-                    continue
-                # print (str(stim) + ' has ' + str(sum) + str(label))
             count += 1
+        except:
+            count +=1
+            continue
 
-        else:
-            count += 1
-    print(func)
 
 
-    for stim in stimuli:
-        common_params = dict(bins=20,
-                             range=(0, 100),
-                             normed=False
-                             )
-        print( str(stim))
-        print (str(np.mean(results_fid[int(stimuli.index(stim))])) + ' ' + str(np.std(results_fid[int(stimuli.index(stim))])))
-        print (str(np.mean(results_mov[int(stimuli.index(stim))])) + ' ' + str(np.std(results_mov[int(stimuli.index(stim))])))
-        print (str(np.mean(results_neither[int(stimuli.index(stim))])) + ' ' + str(np.std(results_neither[int(stimuli.index(stim))])))
-        print ()
+    all_A = np.concatenate((stim_A_fidget_cux2, stim_A_fidget_emx1, stim_A_fidget_nr5a1, stim_A_fidget_rbp4, stim_A_fidget_rorb, stim_A_fidget_scnn1a))
+    all_B = np.concatenate((stim_B_fidget_cux2, stim_B_fidget_emx1, stim_B_fidget_nr5a1, stim_B_fidget_rbp4, stim_B_fidget_rorb, stim_B_fidget_scnn1a))
 
-        plt.hist((results_fid[int(stimuli.index(stim))], results_mov[int(stimuli.index(stim))], results_neither[int(stimuli.index(stim))]),
-                 label=('Fidget Frequency', 'Movement Frequency', 'Neither frequency'), **common_params)
-        plt.legend(loc='upper right')
-        plt.xlabel(' Ratio of ' + str(stim) + ' Displaying Behavior')
-        plt.ylabel(' Number of Experiments ')
-        plt.title('Distribution of Behavior Frequency During '  + str(stim) )
-        plt.show()
+    plt.title(' Intra-Mouse Stim B versus stim C Fidget rate')
+    plt.ylabel('Stimulus C Fidget Rate')
+    plt.xlabel('Stimulus B Fidget Rate')
+    plt.show(hist2d(all_A, all_B, bins= 18))
 
+    # colors = ['b', 'c', 'y', 'm', 'r', 'k']
+    #
+    # cux2 = plt.scatter(stim_A_fidget_cux2, stim_B_fidget_cux2, marker='o', color=colors[0])
+    # emx1 = plt.scatter(stim_A_fidget_emx1, stim_B_fidget_emx1, marker='o', color=colors[1])
+    # nr5a1 = plt.scatter(stim_A_fidget_nr5a1, stim_B_fidget_nr5a1, marker='o', color=colors[2])
+    # rbp4 = plt.scatter(stim_A_fidget_rbp4, stim_B_fidget_rbp4, marker='o', color=colors[3])
+    # rorb = plt.scatter(stim_A_fidget_rorb, stim_B_fidget_rorb, marker='o', color=colors[4])
+    # scnn1a = plt.scatter(stim_A_fidget_scnn1a, stim_B_fidget_scnn1a, marker='o', color=colors[5])
+    #
+    # plt.legend((cux2, emx1, nr5a1, rbp4, rorb, scnn1a),
+    #            ('Cux2', 'Emx1', 'Nr5a1', 'Rbp4', 'Rorb', 'Scnn1a'),
+    #            scatterpoints=1,
+    #            loc='lower right',
+    #            ncol=3,
+    #            fontsize=8)
+    #
+    # plt.title(' Intra-Mouse Stim B versus stim C Fidget rate')
+    # plt.ylabel('Stimulus B Fidget Rate')
+    # plt.xlabel('Stimulus C Fidget Rate')
+    # plt.show()
+
+    # workbook = xlsxwriter.Workbook('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\A_cre.xlsx')
+    # worksheet = workbook.add_worksheet()
+    #
+    #
+    # worksheet.write_row(11, 0, stim_A_fidget_scnn1a)
+    # # worksheet.write_row(12, 0, stim_B_fidget_scnn1a)
+    # workbook.close()
+
+
+    #     if stim == 'three_session_A':
+    #         A_count += 1
+    #     if stim == 'three_session_B':
+    #         B_count += 1
+    #     if stim == 'three_session_C':
+    #         C_count += 1
+    #
+    #
+    # time_A = [[] for _ in range(A_count)]
+    # time_B = [[] for _ in range(B_count)]
+    # time_C = [[] for _ in range(C_count)]
+    #
+    # A_count = 0
+    # B_count = 0
+    # C_count = 0
+
+    # for id in ids:
+    #
+    #     qc_status = np.array(find_status(id))
+    #     status = qc_status[(0)][2]
+    #
+    #     # if status is not None and 'failed' not in status:
+    #
+    #
+    #     func += 1
+    #     stimulus = qc_status[(0)][3]
+    #     data = ann_data[count]
+    #     count += 1
+    #
+    #
+    #     t_fid = 0
+    #     for f in range(len(data)):
+    #         if data[f] == 0:
+    #             t_fid += 1
+    #
+    #     t_neither = 0
+    #     for f in range(len(data)):
+    #         if data[f] == 1:
+    #             t_neither += 1
+    #
+    #     t_mov = 0
+    #     for f in range(len(data)):
+    #         if data[f] == 2:
+    #             t_mov += 1
+    #
+    #     base = (float(t_fid)/len(data))*100
+    #
+    #     block = []
+    #     for i in range (0, len(data), 1000):
+    #         p = 0
+    #         for k in range (i, i+1000):
+    #             try:
+    #                 if data[k] == 0:
+    #                     p += 1
+    #             except:
+    #                 continue
+    #         block.append(round((float(p/float(1000))*100)/base, 2))
+    #
+    #     data = block
+    #
+    #
+    #     if stimulus == 'three_session_A':
+    #
+    #         time_A[A_count] = data
+    #         A_count += 1
+    #
+    #     if stimulus == 'three_session_B':
+    #
+    #         time_B[B_count] = data
+    #         B_count += 1
+    #
+    #     if stimulus == 'three_session_C':
+    #         time_C[C_count] = data
+    #         C_count += 1
+    #
+    #
+    # # print np.apply_along_axis(myfunction, axis=1, arr=time_A)
+    # # print np.apply_along_axis(myfunction, axis=1, arr=time_B)
+    # # print np.apply_along_axis(myfunction, axis=1, arr=time_C)
+    #
+    #         # Create a new workbook and add a worksheet
+    #
+    #
+    # workbook = xlsxwriter.Workbook('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\.xlsx')
+    # worksheet = workbook.add_worksheet()
+    #
+    # for row, data in enumerate(time_C):
+    #     worksheet.write_row(row, 0, data)
+    # workbook.close()
+    #
+
+def myplot(x, y, nb=32, xsize=500, ysize=500):
+    xmin = np.min(x)
+    xmax = np.max(x)
+    ymin = np.min(y)
+    ymax = np.max(y)
+
+    x0 = (xmin+xmax)/2.
+    y0 = (ymin+ymax)/2.
+
+    pos = np.zeros([3, len(x)])
+    pos[0,:] = x
+    pos[1,:] = y
+    w = np.ones(len(x))
+
+    P = sph.Particles(pos, w, nb=nb)
+    S = sph.Scene(P)
+    S.update_camera(r='infinity', x=x0, y=y0, z=0,
+                    xsize=xsize, ysize=ysize)
+    R = sph.Render(S)
+    R.set_logscale()
+    img = R.get_image()
+    extent = R.get_extent()
+    for i, j in zip(xrange(4), [x0,x0,y0,y0]):
+        extent[i] += j
+    print extent
+    return img, extent
+
+def myfunction (x):
+    return len (x)
 
 def open_nwb(lims_ID):
 
@@ -331,10 +453,13 @@ def get_all_data (lims_ids):
     return data
 
 if __name__ == '__main__':
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     text_file = open("C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\LIMS_IDS.txt", "r")
     lims_ids = text_file.read().split(',')
     # print (lims_ids[5] + lims_ids[12] + lims_ids[14] + lims_ids[25] +lims_ids[34] + lims_ids[41] +lims_ids[46] + lims_ids[49]  +lims_ids[54] + lims_ids[55]   )
     ann_data = get_all_data(lims_ids)
     # create_histogram(ann_data)
     #
+
     run(lims_ids, ann_data)
