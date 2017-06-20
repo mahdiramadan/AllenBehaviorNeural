@@ -45,6 +45,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import label_binarize
 from sklearn.multiclass import OneVsRestClassifier
 from scipy import interp
+from matplotlib import cm as CM
+from matplotlib import mlab as ML
 
 
 
@@ -92,152 +94,76 @@ def run (ids , ann_data):
     B_count = 0
     C_count = 0
 
-    # excel_data = pandas.read_excel('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\global_report.xlsx', sheetname = 'all')
-    # excel_ids = excel_data['lims ID']
-    # rig_list = excel_data['lims_database_operator']
+    excel_data = pandas.read_excel('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\global_report.xlsx', sheetname = 'all')
+    excel_ids = excel_data['lims ID']
+    mid_list = excel_data['lims_database_specimen_id']
+
     # unique = np.unique(rig_list)
-    #
-    #
-    #
     # # unique_operator = np.unique(operator_list).tolist()
-    # rig_results = [[] for _ in range(len(unique))]
+    # session_results = [[] for _ in range(17)]
 
-    for id in ids:
-        qc_status = np.array(find_status(id))
-        stim = qc_status[(0)][3]
-
-        if stim == 'three_session_A':
-            A_count += 1
-
-    A_anxiety = [[] for _ in range(A_count*2)]
-
-    A_count = 0
-    y_train=[]
+    anxiety = []
+    session = []
 
     for id in ids:
 
         data = ann_data[count]
-        qc_status = np.array(find_status(id))
-        stim = qc_status[(0)][3]
 
-        if stim == 'three_session_A':
+        t_fid = 0
+        for f in range(len(data)):
+            if data[f] == 0:
+                t_fid += 1
 
-            t_fid = 0
-            for f in range(len(data)):
-                if data[f] == 0:
-                    t_fid += 1
+        t_neither = 0
+        for f in range(len(data)):
+            if data[f] == 1:
+                t_neither += 1
 
-            t_neither = 0
-            for f in range(len(data)):
-                if data[f] == 1:
-                    t_neither += 1
+        t_mov = 0
+        for f in range(len(data)):
+            if data[f] == 2:
+                t_mov += 1
 
-            t_mov = 0
-            for f in range(len(data)):
-                if data[f] == 2:
-                    t_mov += 1
 
-            base = (float(t_fid) / len(data)) * 100
+        for index, itm in enumerate(excel_ids):
+            if str(itm).strip() == id.strip():
+                track = index
 
-            block = []
-            for i in range (0, len(data), 1000):
-                p = 0
-                for k in range (i, i+1000):
-                    try:
-                        if data[k] == 0:
-                            p += 1
-                    except:
-                        continue
-                block.append(round((float(p/float(1000))*100)/base, 2))
 
-            data = block
-
-            A_anxiety[A_count] = np.hstack((data[40:50], data[72:82]))
-            A_anxiety[(A_count +1)] = np.hstack((data[20:40]))
-            y_train.append(0)
-            y_train.append(1)
-            A_count += 2
-            # for index, itm in enumerate(excel_ids):
-            #     if str(itm).strip() == id.strip():
-            #         track = index
-            #
-            #
-            #
-            # if track is not empty:
-            #     info = str(rig_list[track]).strip().split('.')
-            #     rig = info[1]
-            #     rig_results[int(rig)].append(round((float(t_fid)/len(data))*100, 2))
+        temp = []
+        if track is not empty:
+            MID = int(mid_list[track])
+            c = 1
+            for i in range(0,track):
+                if int(mid_list[i]) == MID:
+                    temp.append(i)
+                    c += 1
+            session_results[c-1].append(round((float(t_fid)/len(data))*100, 2))
+            # session.append(c)
 
         count += 1
 
-
-
-        # workbook = xlsxwriter.Workbook('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\rig_results.xlsx')
-        # worksheet = workbook.add_worksheet()
-        #
-        # for index, row in enumerate(rig_results):
-        #     worksheet.write_row(index, 0, row)
-        #
-        #
-        # workbook.close()
-
-
-
-    x_data = A_anxiety[:]
-    y_data = y_train
-
-    # rows_n = len(x_data)
-    # train = int(round(rows_n * 0.6))
-    # end = int(round(rows_n * 1.0))
+    # plt.subplot(111)
+    # gridsize = 20
     #
-    # X_train = x_data[0:train]
-    # X_test = x_data[train:end]
+    # plt.hexbin(anxiety, session, gridsize=gridsize, cmap=CM.jet, bins=None)
+    # plt.axis([np.min(anxiety), np.max(anxiety), np.min(session), np.max(session)])
     #
-    # y_train = y_data[0:train]
-    # y_test = y_data[train:end]
-
-    X_train, X_test, y_train, y_test = train_test_split(x_data, y_data, test_size=.35,
-                                                        random_state=1)
-
-    # Learn to predict each class against the other
-    classifier = OneVsRestClassifier(svm.SVC(kernel='rbf', probability= True))
-    y_score = classifier.fit(X_train, y_train).decision_function(X_test)
-
-    # Compute ROC curve and ROC area for each class
-    fpr = dict()
-    tpr = dict()
-    roc_auc = dict()
-
-    fpr[0], tpr[0], _ = roc_curve(y_test[:], y_score[:])
-    roc_auc[0] = auc(fpr[0], tpr[0])
-
-    # Compute micro-average ROC curve and ROC area
-    fpr["micro"], tpr["micro"], _ = roc_curve(y_test, y_score)
-    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
-
-    plt.figure()
-    lw = 2
-    plt.plot(fpr[0], tpr[0], color='darkorange',
-             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc[0])
-    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Natural Movie Three Stimulus Prediction from Fidget Rate by RBF SVM')
-    plt.legend(loc="lower right")
-    plt.show()
+    # cb = plt.colorbar()
+    # cb.set_label('mean value')
+    # plt.title('Effect of Number of Mouse Sessions on Fidget Rate Heat Map')
+    # plt.xlabel('Fidget Rate')
+    # plt.ylabel('Number of  Sessions')
+    # plt.show()
 
 
+    workbook = xlsxwriter.Workbook('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\session_average_results.xlsx')
+    worksheet = workbook.add_worksheet()
 
-    target_names = ['Other', 'Natural Movie Three']
-    y_true, y_pred = y_test, classifier.predict(X_test)
-    print(classification_report(y_true, y_pred, target_names=target_names))
+    for indx, data in enumerate(session_results):
+        worksheet.write_row(indx, 0, data)
 
-
-
-
-
+    workbook.close()
 
 
 
