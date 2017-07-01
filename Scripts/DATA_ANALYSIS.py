@@ -36,6 +36,7 @@ from sklearn.preprocessing import Imputer
 from sklearn.feature_selection import RFE
 import time
 import pdb
+from scipy.misc import toimage
 from psycopg2 import connect
 import warnings
 from datetime import datetime
@@ -47,11 +48,21 @@ from sklearn.multiclass import OneVsRestClassifier
 from scipy import interp
 from matplotlib import cm as CM
 from matplotlib import mlab as ML
+from sync_meta import SyncMeta as sm
+from allensdk.core.brain_observatory_cache import BrainObservatoryCache
+from allensdk.core.brain_observatory_nwb_data_set import BrainObservatoryNwbDataSet
+from Sync_Camera_Stimulus_Analysis import Get_Wheel as gw
+from PIL import Image
+
 
 
 
 def run (ids , ann_data):
-    # create CAM stimulus definition visual
+
+    # boc = BrainObservatoryCache(manifest_file='boc/manifest.json')
+
+
+    # Get data container information
     count = 0
 
     db_params = {
@@ -78,6 +89,7 @@ def run (ids , ann_data):
 
     cur = get_db_cursor(**db_params)
 
+    # find container status
     def find_status(lims_id):
         query = QUERY.format(lims_id)
         cur.execute(query)
@@ -94,6 +106,7 @@ def run (ids , ann_data):
     B_count = 0
     C_count = 0
 
+    # read in global report for analysis and read excel ids
     excel_data = pandas.read_excel('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\global_report.xlsx', sheetname = 'all')
     excel_ids = excel_data['lims ID']
     mid_list = excel_data['lims_database_specimen_id']
@@ -102,70 +115,222 @@ def run (ids , ann_data):
     # # unique_operator = np.unique(operator_list).tolist()
     # session_results = [[] for _ in range(17)]
 
+
     anxiety = []
     session = []
 
     for id in ids:
+        if id.strip() == '509292861':
+            id = id.strip()
+            # qc_status = np.array(find_status(id.strip()))
+            # status = qc_status[(0)][2]
+            # check if failed
+            # if 'failed' not in status:
+            #     print (' experiment ' + str(id) + ' did not pass QC')
+            #
 
-        data = ann_data[count]
-
-        t_fid = 0
-        for f in range(len(data)):
-            if data[f] == 0:
-                t_fid += 1
-
-        t_neither = 0
-        for f in range(len(data)):
-            if data[f] == 1:
-                t_neither += 1
-
-        t_mov = 0
-        for f in range(len(data)):
-            if data[f] == 2:
-                t_mov += 1
+            # get new video directory
+            directory = ld(id).get_video_directory()
+            temp = directory.split('cns\\')
+            new_dir = '\\\\allen\programs\\braintv\production\\' + temp[1]
 
 
-        for index, itm in enumerate(excel_ids):
-            if str(itm).strip() == id.strip():
-                track = index
 
 
-        temp = []
-        if track is not empty:
-            MID = int(mid_list[track])
-            c = 1
-            for i in range(0,track):
-                if int(mid_list[i]) == MID:
-                    temp.append(i)
-                    c += 1
-            session_results[c-1].append(round((float(t_fid)/len(data))*100, 2))
-            # session.append(c)
+            nwb_path = None
+            h5_file= None
+            pkl_file = None
+            video_file= None
+            # get experiment's associated files
+            for file in os.listdir(new_dir):
+                if file.endswith(".nwb"):
+                    # make sure file is in there!
+                    nwb_path = os.path.join(new_dir, file)
+                    # input file path, r is for read only
+            if bool(nwb_path) == False:
+                print('NWB file not found')
+                continue
 
+            for file in os.listdir(new_dir):
+                # looks for the h5 file and makes the directory to it
+                if file.endswith("sync.h5"):
+                    h5_file = os.path.join(new_dir, file)
+            if bool(h5_file) == False:
+                print('H5 file not found')
+                continue
+
+
+            for file in os.listdir(new_dir):
+                # looks for the pkl file and makes the directory to it
+                if file.endswith("stim.pkl"):
+                    pkl_file = os.path.join(new_dir, file)
+            if bool(pkl_file) == False:
+                print('PKL file not found')
+                continue
+
+
+            # get wheel data and first non Nan value
+            grab_wheel = gw(h5_file)
+            frames = grab_wheel.return_frames()
+            wheel = grab_wheel.getRunningData(pkl_file, frames)
+            first_non_nan = next(x for x in wheel if not isnan(x))
+            first_index = np.where(wheel == first_non_nan)[0]
+            imp = Imputer(missing_values='NaN', strategy='mean')
+            # normalize wheel data according to wheel scaler
+            wheel = imp.fit_transform(wheel)
+            k = first_index[0]
+
+            # get behavior and neural activity timing, as well as annotated data and dff traces
+            neuron = BrainObservatoryNwbDataSet(nwb_path)
+            n_data = neuron.get_dff_traces()
+
+            beh_time = sm(new_dir).get_frame_times_behavior()
+            neuro_time = sm(new_dir).get_frame_times_physio()
+            data = ann_data[count]
+
+            # get visual cortex movie
+            path = '\\\\allen\\programs\\braintv\\production\\neuralcoding\\prod6\\specimen_501800347\\ophys_experiment_509292861\\processed\\concat_31Hz_0.h5'
+            F = h5py.File(path)
+
+            # determine how many unique fidget examples there are
+            flu_count = 0
+
+            limit = len(data)-200
+            if limit > len(beh_time):
+                limit = len(beh_time)
+            if limit > len(neuro_time):
+                limit = len(neuro_time)
+
+            for f in range(len(data)-200):
+                if (data[f] == 1 and data[f + 1] == 0) or (data[f] == 2 and data[f + 1] == 0):
+                    flu_count += 1
+
+            # initialize data arrays
+            fluorescent_traces = [[[] for _ in range (len(n_data[1]))] for _ in range(flu_count)]
+            fluorescent_traces_cell = [[[] for _ in range(flu_count)] for _ in range(len(n_data[1]))]
+            video_traces = [[[] for _ in range (flu_count)] for _ in range(300)]
+
+            print(flu_count)
+            flu_count = 0
+
+            indices = []
+
+
+
+            print('calculating average movie and neural activity')
+            # for each frame, check whether its fidget or not
+            for f in range(len(data)-200):
+                if (data[f] == 1 and data[f+1] == 0) or (data[f] == 2 and data[f+1] == 0):
+                    # get behavior time (must be offset by the index of first wheel value since annotated data starts then)
+                    b_time = beh_time[f+k]
+                    # use to get associated video time in seconds
+                    t = beh_time[f]
+                    # get mapped fluorescence index
+                    idx = (np.abs(neuro_time - b_time)).argmin()
+                    # store each cell's fluorescent trace 100 frames back and 200 forward from start of fidget
+                    for p in range (len(n_data[1])):
+                        # keeps track per fidget example
+                        fluorescent_traces[flu_count][p] = n_data[1][p][idx-100:(idx+200)]
+                        # keeps track per cell
+                        fluorescent_traces_cell[p][flu_count] = n_data[1][p][idx - 100:(idx + 200)]
+                    # save video trace of neural activity
+                    # for h in range(300):
+                    #
+                    #     video_traces[h][flu_count] = np.array(F['data'][ int(idx-100+h),:,:])
+
+
+                    # data_pointer.release()
+                    # cv2.destroyAllWindows()
+                    flu_count += 1
+
+
+
+                if f  %1000 == 0:
+                    print(f)
+
+
+            average_video = [[] for _ in range(300)]
+            firing1 = []
+            firing2 = []
+            indices = []
+
+            # for each fidget example, get examples where there is a significant difference between during and after fidget
+            # response, average those videos together and write them out (then use makeavi programto make video)
+            # for i in range (flu_count):
+            #     temp = np.array(fluorescent_traces[i])
+            #     array1 = np.mean(temp[:, 100:150])
+            #     array2 = np.mean(temp[:, 150:200])
+            #
+            #     # if array2 > 0.08 and array1 < 0.08:
+            #     if array2-array1 > 0.06:
+            #         indices.append(i)
+            #         firing1.append(array1)
+            #         firing2.append(array2)
+            # temp =[]
+            # for p in range(300):
+            #     temp= [video_traces[p][i] for i in indices]
+            #     average_video[p] = np.mean(temp, axis=0)
+            #     # print(np.min(video_traces[p][0]), np.max(video_traces[p][0]))
+            #     toimage(average_video[p], cmin=0, cmax=400).save(
+            #         'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\neural_images_select2\\' + 'image_' + str(
+            #             p) + '.png')
+
+
+            # Use code to plot average fluorescence per fidget example
+
+            # # plt.plot(firing, color = 'b')
+            # plt.title("Average Fluroscence per Fidget Example During and After Fidget")
+            # plt.plot(firing1, 'bo')
+            # plt.plot(firing2, 'ro')
+            # plt.xlabel('Fidget Example')
+            # plt.ylabel('Average Fluorescence')
+            # plt.show()
+            #
+            # workbook = xlsxwriter.Workbook(
+            #     'C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\average_fluoresence_select2.xlsx')
+            # worksheet = workbook.add_worksheet()
+            #
+            # worksheet.write_row(0, 0, firing1)
+            # worksheet.write_row(1, 0, firing2)
+            #
+            # workbook.close()
+
+
+            # use code to plot average cell response
+
+            fluorescence_average = [[] for _ in range(len(n_data[1]))]
+
+            plt.title('Fluorescent Traces During Fidget for id ' + str(id))
+
+
+            for p in range(len(n_data[1])):
+                fluorescence_average[p] = np.mean(fluorescent_traces_cell[p][:], axis = 0)
+                fluorescence_average[p] = fluorescence_average[p] - fluorescence_average[p][0]
+                if np.max(fluorescence_average[p]) > 20:
+                    print(p)
+                # plt.plot(fluorescence_average[p])
+
+            # plt.show()
+
+            plt.imshow(fluorescence_average[:])
+            plt.clim(-0.01, 0.01)
+            plt.show()
         count += 1
-
-    # plt.subplot(111)
-    # gridsize = 20
-    #
-    # plt.hexbin(anxiety, session, gridsize=gridsize, cmap=CM.jet, bins=None)
-    # plt.axis([np.min(anxiety), np.max(anxiety), np.min(session), np.max(session)])
-    #
-    # cb = plt.colorbar()
-    # cb.set_label('mean value')
-    # plt.title('Effect of Number of Mouse Sessions on Fidget Rate Heat Map')
-    # plt.xlabel('Fidget Rate')
-    # plt.ylabel('Number of  Sessions')
-    # plt.show()
+        # except:
+        #     count += 1
+        #     continue
 
 
-    workbook = xlsxwriter.Workbook('C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\session_average_results.xlsx')
-    worksheet = workbook.add_worksheet()
-
-    for indx, data in enumerate(session_results):
-        worksheet.write_row(indx, 0, data)
-
-    workbook.close()
 
 
+def array2image(a):
+    if a.typecode() == Numeric.UnsignedInt8:
+        mode = "L"
+    elif a.typecode() == Numeric.Float32:
+        mode = "F"
+    else:
+        raise ValueError, "unsupported image mode"
+    return Image.fromstring(mode, (a.shape[1], a.shape[0]), a.tostring())
 
 def myfunction (x):
     return len (x)
@@ -209,8 +374,8 @@ def create_histogram (data):
             values_movement.append((float(m) / len(data[i]))*100)
             values_neither.append((float(n) / len(data[i]))*100)
 
-            # if ((float(m) / len(data[i]))*100) < 2:
-            #     print(i)
+            if ((float(f) / len(data[i]))*100) > 50:
+                print(i)
         except:
             continue
 
@@ -278,13 +443,17 @@ def get_all_data (lims_ids):
     return data
 
 if __name__ == '__main__':
-
+    # get list of lims id
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     text_file = open("C:\Users\mahdir\Documents\Allen Projects\Behavior Annotation\\LIMS_IDS.txt", "r")
     lims_ids = text_file.read().split(',')
-    # print (lims_ids[5] + lims_ids[12] + lims_ids[14] + lims_ids[25] +lims_ids[34] + lims_ids[41] +lims_ids[46] + lims_ids[49]  +lims_ids[54] + lims_ids[55]   )
+    # print (lims_ids[79])
+
+    # get annotated data
     ann_data = get_all_data(lims_ids)
+
+    # use code to create behavior frequency histograms
     # create_histogram(ann_data)
     #
-
+    # run main analysis script
     run(lims_ids, ann_data)
