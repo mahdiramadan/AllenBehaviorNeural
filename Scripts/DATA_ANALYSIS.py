@@ -130,9 +130,9 @@ def run (ids , ann_data):
             #
 
             # get new video directory
-            directory = ld(id).get_video_directory()
-            temp = directory.split('cns\\')
-            new_dir = '\\\\allen\programs\\braintv\production\\' + temp[1]
+            new_dir = '\\'+str(ld(id).get_video_directory())[0:-1]
+
+
 
 
 
